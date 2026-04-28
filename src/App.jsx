@@ -174,7 +174,7 @@ function App() {
         {showForm && (
           <div className="modal-overlay">
             <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="modal">
-              <h2 style={{ marginBottom: '20px' }}>Посадить слово</h2>
+              <h2 style={{ marginBottom: '20px' }}>Написать пожелание</h2>
               <form onSubmit={addMemory}>
                 <input name="name" placeholder="Твое имя" required />
                 <textarea name="text" placeholder="Пожелание..." rows="4" required />
