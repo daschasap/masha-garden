@@ -131,7 +131,7 @@ function App() {
       <audio ref={audioRef} src={currentTrack?.file} loop />
 
       <header>
-        <h1 className="title">Сад для Маши</h1>
+        <h1 className="title">Маша, мы будем очень скучать!</h1>
         <button className="btn-primary" onClick={() => setShowForm(true)}>💌 Написать пожелание</button>
         <button className="btn-primary" style={{ background: '#e9c4a6' }} onClick={() => setShowArchive(true)}>✨ Шкатулка</button>
       </header>
