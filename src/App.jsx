@@ -86,7 +86,7 @@ function App() {
         <p style={{ letterSpacing: '3px', opacity: 0.6, fontWeight: 'bold' }}>ОТ КОЛЛЕГ С ЛЮБОВЬЮ</p>
         <h1 className="title">Маша, мы будем очень по тебе скучать</h1>
         <div style={{ marginBottom: '60px' }}>
-          <button className="btn-primary" onClick={() => setShowForm(true)}>🌱 Посадить пожелание</button>
+          <button className="btn-primary" onClick={() => setShowForm(true)}>💌 Написать пожелание</button>
           <button className="btn-primary" style={{ background: '#e9c4a6' }} onClick={() => setShowArchive(true)}>✨ Шкатулка воспоминаний</button>
         </div>
       </header>
