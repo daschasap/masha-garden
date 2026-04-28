@@ -55,13 +55,27 @@ function App() {
 
   // УДАЛЕНИЕ ПОЖЕЛАНИЯ
   const deleteMemory = async (id) => {
+    if (!id) {
+      console.error("Ошибка: ID не передан в функцию удаления");
+      return;
+    }
+
     if (!confirm("Удалить это пожелание?")) return;
-    const { error } = await supabase.from('memories').delete().eq('id', id);
-    if (!error) {
-      setMemories(memories.filter(m => m.id !== id));
-      setSelectedFlower(null);
+
+    console.log("Запрос на удаление ID:", id);
+
+    const { error } = await supabase
+      .from('memories')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error("Ошибка Supabase:", error.message);
+      alert("Ошибка базы: " + error.message);
     } else {
-      alert("Ошибка: " + error.message);
+      console.log("Удаление прошло успешно");
+      setMemories(prev => prev.filter(m => m.id !== id));
+      setSelectedFlower(null);
     }
   };
 
