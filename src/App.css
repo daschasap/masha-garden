@@ -1,0 +1,131 @@
+@import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@300;700&display=swap');
+
+:root {
+  --sage: #89B09F;
+  --sage-dark: #5b7a61;
+  --beige: #fdfaf1;
+  --accent: #e9c4a6;
+  --text: #4a5d4e;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--beige);
+  font-family: 'Comfortaa', cursive;
+  color: var(--text);
+}
+
+.garden-bg {
+  min-height: 100vh;
+  padding: 60px 20px;
+  text-align: center;
+}
+
+.title {
+  font-size: 3.5rem;
+  color: var(--sage-dark);
+  margin: 20px 0;
+}
+
+.btn-primary {
+  background-color: var(--sage);
+  color: white;
+  border: none;
+  padding: 14px 28px;
+  border-radius: 50px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Стили для цветов в саду */
+.flower-wrapper {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+}
+
+.flower-card {
+  font-size: 3rem;
+  transition: transform 0.3s ease;
+  filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.1));
+}
+
+.flower-wrapper:hover .flower-card {
+  transform: scale(1.2) rotate(10deg);
+}
+
+.delete-btn {
+  opacity: 0;
+  background: #ffeded;
+  color: #ff5c5c;
+  border: none;
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 10px;
+  margin-top: 5px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.flower-wrapper:hover .delete-btn {
+  opacity: 1;
+}
+
+/* Модальные окна */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(74, 93, 78, 0.3);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  padding: 40px;
+  border-radius: 30px;
+  width: 90%;
+  max-width: 450px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  position: relative;
+}
+
+input,
+textarea {
+  width: 100%;
+  padding: 15px;
+  margin-bottom: 20px;
+  border: 1px solid #eee;
+  border-radius: 15px;
+  font-family: inherit;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.close-x {
+  position: absolute;
+  right: 25px;
+  top: 25px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #ccc;
+}
