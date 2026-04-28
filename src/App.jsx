@@ -1,9 +1,14 @@
-const SUPABASE_URL = 'https://mroimmkxtamxutwdtwnc.supabase.co/rest/v1/';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yb2ltbWt4dGFteHV0d2R0d25jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczODU2MzYsImV4cCI6MjA5Mjk2MTYzNn0.M5HppKc_tn2ptoprvrehs0Hh9tJcW3uiIG8ZKSPo7SA';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { createClient } from '@supabase/supabase-js';
 
-// Генерируем ID пользователя, чтобы отличать свои сообщения
+// --- ТВОИ ДАННЫЕ (УБЕРИ /rest/v1/ ИЗ URL) ---
+const SUPABASE_URL = 'https://mroimmkxtamxutwdtwnc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yb2ltbWt4dGFteHV0d2R0d25jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczODU2MzYsImV4cCI6MjA5Mjk2MTYzNn0.M5HppKc_tn2ptoprvrehs0Hh9tJcW3uiIG8ZKSPo7SA';
+
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 const USER_ID = localStorage.getItem('garden_user_id') || Math.random().toString(36).substring(7);
 localStorage.setItem('garden_user_id', USER_ID);
 
@@ -13,183 +18,207 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
   const [selectedFlower, setSelectedFlower] = useState(null);
-  const [fullScreenMedia, setFullScreenMedia] = useState(null); // Для зума фото/видео
+  const [fullScreenMedia, setFullScreenMedia] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [currentTrack, setCurrentTrack] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef(null);
+
+  const playlist = [
+    { id: 1, name: 'Светлая грусть', file: '/track1.mp3', icon: '🍃' },
+    { id: 2, name: 'Наши моменты', file: '/track2.mp3', icon: '✨' },
+    { id: 3, name: 'В добрый путь!', file: '/track3.mp3', icon: '☀️' },
+  ];
 
   useEffect(() => {
-    const m = localStorage.getItem('masha_memories');
-    const a = localStorage.getItem('masha_archive');
-    if (m) setMemories(JSON.parse(m));
-    if (a) setArchiveMedia(JSON.parse(a));
+    fetchMemories();
+    fetchArchive();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('masha_memories', JSON.stringify(memories));
-    localStorage.setItem('masha_archive', JSON.stringify(archiveMedia));
-  }, [memories, archiveMedia]);
+  async function fetchMemories() {
+    const { data } = await supabase.from('memories').select('*');
+    if (data) setMemories(data);
+  }
 
-  const addMemory = (e) => {
+  async function fetchArchive() {
+    const { data } = await supabase.storage.from('garden-media').list();
+    if (data) {
+      const urls = data.map(file => ({
+        id: file.id,
+        name: file.name,
+        url: supabase.storage.from('garden-media').getPublicUrl(file.name).data.publicUrl,
+        type: file.name.match(/\.(mp4|mov|webm)$/i) ? 'video' : 'image'
+      }));
+      setArchiveMedia(urls);
+    }
+  }
+
+  // УДАЛЕНИЕ ПОЖЕЛАНИЯ
+  const deleteMemory = async (id) => {
+    if (!confirm("Удалить это пожелание?")) return;
+    const { error } = await supabase.from('memories').delete().eq('id', id);
+    if (!error) {
+      setMemories(memories.filter(m => m.id !== id));
+      setSelectedFlower(null);
+    } else {
+      alert("Ошибка: " + error.message);
+    }
+  };
+
+  // УДАЛЕНИЕ ФАЙЛА
+  const deleteFile = async (fileName) => {
+    if (!confirm("Удалить этот файл из шкатулки?")) return;
+    const { error } = await supabase.storage.from('garden-media').remove([fileName]);
+    if (!error) {
+      fetchArchive();
+    } else {
+      alert("Ошибка: " + error.message);
+    }
+  };
+
+  const addMemory = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    setMemories([...memories, {
-      id: Date.now(),
-      authorId: USER_ID, // Привязываем сообщение к автору
+    const newMsg = {
+      author_id: USER_ID,
       name: formData.get('name'),
       text: formData.get('text'),
       x: Math.floor(Math.random() * 80) + 10,
       y: Math.floor(Math.random() * 40) + 20
-    }]);
-    setShowForm(false);
-    e.target.reset();
+    };
+    const { error } = await supabase.from('memories').insert([newMsg]);
+    if (!error) { fetchMemories(); setShowForm(false); e.target.reset(); }
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setArchiveMedia([...archiveMedia, {
-        id: Date.now(),
-        authorId: USER_ID,
-        type: file.type.startsWith('video') ? 'video' : 'image',
-        url: reader.result
-      }]);
-    };
-    reader.readAsDataURL(file);
+    setUploading(true);
+    const fileName = `${Date.now()}_${file.name}`;
+    const { error } = await supabase.storage.from('garden-media').upload(fileName, file);
+    if (!error) fetchArchive();
+    setUploading(false);
+  };
+
+  const togglePlay = (track) => {
+    if (currentTrack?.id === track.id) {
+      isPlaying ? audioRef.current.pause() : audioRef.current.play();
+      setIsPlaying(!isPlaying);
+    } else {
+      setCurrentTrack(track);
+      setIsPlaying(true);
+      setTimeout(() => audioRef.current.play(), 150);
+    }
   };
 
   return (
     <div className="garden-bg">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Comfortaa:wght@300;700&display=swap');
-        .garden-bg { min-height: 100vh; background: #fdfaf1; font-family: 'Comfortaa', cursive; color: #4a5d4e; text-align: center; padding: 60px 20px; position: relative; }
-        .title { font-size: 3.2rem; color: #5b7a61; margin-bottom: 30px; }
-        .btn-primary { background: #7ca38a; color: white; border: none; padding: 14px 28px; border-radius: 50px; font-weight: bold; cursor: pointer; margin: 10px; transition: 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        .btn-primary:hover { transform: translateY(-2px); background: #6b8e76; }
+        .garden-bg { min-height: 100vh; background: #fdfaf1; font-family: 'Comfortaa', cursive; color: #4a5d4e; text-align: center; padding: 60px 20px; position: relative; overflow-x: hidden; }
+        .title { font-size: 2.5rem; color: #5b7a61; margin-bottom: 20px; }
+        .btn-primary { background: #7ca38a; color: white; border: none; padding: 12px 24px; border-radius: 50px; font-weight: bold; cursor: pointer; margin: 10px; transition: 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.1); font-family: inherit; }
         .flower-wrapper { position: absolute; display: flex; flex-direction: column; align-items: center; z-index: 10; cursor: pointer; }
         .flower-card { font-size: 3.5rem; transition: 0.3s; }
-        .flower-card:hover { transform: scale(1.1) rotate(5deg); }
-        .modal-overlay { position: fixed; inset: 0; background: rgba(74, 93, 78, 0.6); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        .modal { background: white; padding: 40px; border-radius: 30px; width: 90%; max-width: 450px; position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.2); }
-        .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; padding: 20px; }
-        .media-item { border-radius: 15px; overflow: hidden; position: relative; background: #eee; height: 180px; cursor: zoom-in; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(74, 93, 78, 0.6); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+        .modal { background: white; padding: 30px; border-radius: 30px; width: 100%; max-width: 450px; position: relative; }
+        .media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
+        .media-item { border-radius: 15px; overflow: hidden; position: relative; background: #eee; height: 150px; cursor: zoom-in; }
         .media-item img, .media-item video { width: 100%; height: 100%; object-fit: cover; }
-        .del-mini { 
-          position: absolute; top: 5px; right: 5px; background: rgba(255,255,255,0.9); 
-          border: none; border-radius: 50%; width: 18px; height: 18px; 
-          cursor: pointer; color: #ff5c5c; font-size: 10px; display: flex; align-items: center; justify-content: center;
-        }
-        .full-media-box { max-width: 90%; max-height: 90%; }
-        .full-media-box img, .full-media-box video { width: auto; height: auto; max-width: 100%; max-height: 80vh; border-radius: 10px; }
+        .del-mini { position: absolute; top: 5px; right: 5px; background: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; color: #ff5c5c; font-weight: bold; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
       `}</style>
 
+      <audio ref={audioRef} src={currentTrack?.file} loop />
+
       <header>
-        <p style={{ letterSpacing: '3px', opacity: 0.6, fontWeight: 'bold' }}>ОТ КОЛЛЕГ С ЛЮБОВЬЮ</p>
-        <h1 className="title">Маша, мы будем очень по тебе скучать</h1>
-        <div style={{ marginBottom: '60px' }}>
-          <button className="btn-primary" onClick={() => setShowForm(true)}>💌 Написать пожелание</button>
-          <button className="btn-primary" style={{ background: '#e9c4a6' }} onClick={() => setShowArchive(true)}>✨ Шкатулка воспоминаний</button>
-        </div>
+        <h1 className="title">Сад для Маши</h1>
+        <button className="btn-primary" onClick={() => setShowForm(true)}>💌 Написать пожелание</button>
+        <button className="btn-primary" style={{ background: '#e9c4a6' }} onClick={() => setShowArchive(true)}>✨ Шкатулка</button>
       </header>
 
-      {/* САД */}
-      <main style={{ position: 'relative', minHeight: '500px' }}>
+      <main style={{ position: 'relative', minHeight: '60vh' }}>
         {memories.map((m) => (
           <motion.div key={m.id} initial={{ scale: 0 }} animate={{ scale: 1 }} className="flower-wrapper" style={{ left: `${m.x}%`, top: `${m.y}%` }} onClick={() => setSelectedFlower(m)}>
             <div className="flower-card">🌸</div>
-            <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{m.name}</div>
+            <div style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>{m.name}</div>
           </motion.div>
         ))}
       </main>
 
-      {/* ПРОСМОТР ЦВЕТКА + УДАЛЕНИЕ ТОЛЬКО СВОИХ */}
+      {/* Плеер */}
+      <div style={{ position: 'fixed', bottom: '20px', left: '20px', zIndex: 1100, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ background: 'white', padding: '5px 10px', borderRadius: '10px', fontSize: '0.7rem' }}>{isPlaying ? currentTrack.name : 'Музыка'}</div>
+        <div style={{ display: 'flex', gap: '5px' }}>
+          {playlist.map(t => (
+            <button key={t.id} onClick={() => togglePlay(t)} style={{ background: currentTrack?.id === t.id && isPlaying ? '#7ca38a' : 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer' }}>{t.icon}</button>
+          ))}
+        </div>
+      </div>
+
       <AnimatePresence>
+        {/* МОДАЛКА ЦВЕТКА */}
         {selectedFlower && (
           <div className="modal-overlay" onClick={() => setSelectedFlower(null)}>
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="modal" onClick={e => e.stopPropagation()}>
-              <h3 style={{ color: '#7ca38a' }}>Для Маши от {selectedFlower.name}</h3>
-              <p style={{ fontSize: '1.2rem', fontStyle: 'italic', margin: '30px 0' }}>"{selectedFlower.text}"</p>
-
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                {selectedFlower.authorId === USER_ID && (
-                  <button onClick={() => {
-                    if (confirm("Удалить?")) { setMemories(memories.filter(f => f.id !== selectedFlower.id)); setSelectedFlower(null); }
-                  }} style={{ background: 'none', border: '1px solid #ff5c5c', color: '#ff5c5c', padding: '5px 15px', borderRadius: '20px', cursor: 'pointer', fontSize: '12px' }}>
-                    Удалить моё
-                  </button>
-                )}
-                <button className="btn-primary" style={{ margin: 0 }} onClick={() => setSelectedFlower(null)}>Закрыть</button>
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="modal" onClick={e => e.stopPropagation()}>
+              <h3>От {selectedFlower.name}</h3>
+              <p>"{selectedFlower.text}"</p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+                <button className="btn-primary" onClick={() => setSelectedFlower(null)}>Закрыть</button>
+                <button onClick={() => deleteMemory(selectedFlower.id)} style={{ background: 'none', border: '1px solid red', color: 'red', borderRadius: '20px', padding: '5px 15px', cursor: 'pointer' }}>Удалить</button>
               </div>
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
 
-      {/* ШКАТУЛКА: ГАЛЕРЕЯ */}
-      <AnimatePresence>
+        {/* МОДАЛКА ФОРМЫ (ЕЕ НЕ ХВАТАЛО) */}
+        {showForm && (
+          <div className="modal-overlay">
+            <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="modal">
+              <h2 style={{ marginBottom: '20px' }}>Посадить слово</h2>
+              <form onSubmit={addMemory}>
+                <input name="name" placeholder="Твое имя" required />
+                <textarea name="text" placeholder="Пожелание..." rows="4" required />
+                <button type="submit" className="btn-primary" style={{ width: '100%', margin: '0' }}>Отправить письмо</button>
+                <button type="button" onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', marginTop: '15px', color: '#999', cursor: 'pointer', width: '100%' }}>Отмена</button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {/* ШКАТУЛКА */}
         {showArchive && (
-          <div className="modal-overlay" style={{ background: '#fdfaf1', alignItems: 'flex-start', overflowY: 'auto', padding: '40px 20px' }}>
-            <div style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
+          <div className="modal-overlay" style={{ background: '#fdfaf1', display: 'block', overflowY: 'auto' }}>
+            <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
               <button onClick={() => setShowArchive(false)} style={{ float: 'right', fontSize: '30px', border: 'none', background: 'none', cursor: 'pointer' }}>✕</button>
-              <h2 className="title">Шкатулка воспоминаний</h2>
-
-              <div style={{ marginBottom: '30px' }}>
-                <label className="btn-primary" style={{ display: 'inline-block', cursor: 'pointer' }}>
-                  Добавить фото/видео
-                  <input type="file" hidden accept="image/*,video/*" onChange={handleFileUpload} />
-                </label>
-              </div>
-
+              <h2 className="title">Шкатулка</h2>
+              <label className="btn-primary" style={{ display: 'inline-block', marginBottom: '20px' }}>
+                {uploading ? "Загрузка..." : "📸 Добавить фото/видео"}
+                <input type="file" hidden onChange={handleFileUpload} disabled={uploading} accept="image/*,video/*" />
+              </label>
               <div className="media-grid">
                 {archiveMedia.map(item => (
-                  <div key={item.id} className="media-item" onClick={() => setFullScreenMedia(item)}>
-                    {item.authorId === USER_ID && (
-                      <button className="del-mini" onClick={(e) => {
-                        e.stopPropagation();
-                        if (confirm("Удалить?")) setArchiveMedia(archiveMedia.filter(i => i.id !== item.id));
-                      }}>✕</button>
-                    )}
-                    {item.type === 'image' ? <img src={item.url} /> : <video src={item.url} />}
+                  <div key={item.id} className="media-item">
+                    <button className="del-mini" onClick={() => deleteFile(item.name)}>✕</button>
+                    {item.type === 'image' ? <img src={item.url} onClick={() => setFullScreenMedia(item)} /> : <video src={item.url} onClick={() => setFullScreenMedia(item)} />}
                   </div>
                 ))}
               </div>
             </div>
           </div>
         )}
-      </AnimatePresence>
 
-      {/* ЛАЙТБОКС (ЗУМ МЕДИА) */}
-      <AnimatePresence>
+        {/* ПОЛНОЭКРАННОЕ МЕДИА */}
         {fullScreenMedia && (
-          <div className="modal-overlay" onClick={() => setFullScreenMedia(null)}>
-            <div className="full-media-box" onClick={e => e.stopPropagation()}>
+          <div className="modal-overlay" onClick={() => setFullScreenMedia(null)} style={{ background: 'rgba(0,0,0,0.9)' }}>
+            <div style={{ maxWidth: '90%', maxHeight: '90%' }}>
               {fullScreenMedia.type === 'image' ?
-                <img src={fullScreenMedia.url} /> :
-                <video src={fullScreenMedia.url} controls autoPlay />
+                <img src={fullScreenMedia.url} style={{ maxWidth: '100%', maxHeight: '80vh', borderRadius: '10px' }} /> :
+                <video src={fullScreenMedia.url} controls autoPlay style={{ maxWidth: '100%', maxHeight: '80vh' }} />
               }
-              <button onClick={() => setFullScreenMedia(null)} style={{ display: 'block', margin: '20px auto', color: 'white', background: 'none', border: '1px solid white', padding: '10px 20px', borderRadius: '20px', cursor: 'pointer' }}>Закрыть</button>
             </div>
           </div>
         )}
       </AnimatePresence>
-
-      {/* ФОРМА */}
-      <AnimatePresence>
-        {showForm && (
-          <div className="modal-overlay">
-            <motion.div className="modal" initial={{ y: 20 }} animate={{ y: 0 }}>
-              <h2 style={{ marginBottom: '20px' }}>Посадить слово</h2>
-              <form onSubmit={addMemory}>
-                <input name="name" placeholder="Твое имя" required />
-                <textarea name="text" placeholder="Пожелание..." rows="5" required />
-                <button type="submit" className="btn-primary" style={{ width: '100%', margin: '0' }}>Отправить</button>
-                <button type="button" onClick={() => setShowForm(false)} style={{ display: 'block', margin: '15px auto 0', color: '#999', border: 'none', background: 'none', cursor: 'pointer' }}>Отмена</button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <footer style={{ marginTop: '100px', opacity: 0.6 }}><h3>Спасибо за всё, Маш ✿</h3></footer>
     </div>
   );
 }
