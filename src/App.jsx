@@ -129,7 +129,7 @@ function App() {
       <header>
         <h1 className="title">Маша, мы будем очень скучать!</h1>
         <button className="btn-primary" onClick={() => setShowForm(true)}>💌 Написать пожелание</button>
-        <button className="btn-primary" style={{ background: '#e9c4a6' }} onClick={() => setShowArchive(true)}>✨ Шкатулка</button>
+        <button className="btn-primary" style={{ background: '#e9c4a6' }} onClick={() => setShowArchive(true)}>✨ Шкатулка воспоминаний</button>
       </header>
 
       <main style={{ position: 'relative', minHeight: '60vh' }}>
