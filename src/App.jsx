@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { createClient } from '@supabase/supabase-js';
 
-// --- ТВОИ ДАННЫЕ (УБЕРИ /rest/v1/ ИЗ URL) ---
+// --- НАСТРОЙКИ SUPABASE ---
 const SUPABASE_URL = 'https://mroimmkxtamxutwdtwnc.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1yb2ltbWt4dGFteHV0d2R0d25jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczODU2MzYsImV4cCI6MjA5Mjk2MTYzNn0.M5HppKc_tn2ptoprvrehs0Hh9tJcW3uiIG8ZKSPo7SA';
-
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -24,10 +23,13 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef(null);
 
+  // Проверка на админа через ссылку (?admin=true)
+  const isAdmin = window.location.search.includes('admin=true');
+
   const playlist = [
-    { id: 1, name: 'Светлая грусть', file: '/track1.mp3', icon: '🍃' },
-    { id: 2, name: 'Наши моменты', file: '/track2.mp3', icon: '✨' },
-    { id: 3, name: 'В добрый путь!', file: '/track3.mp3', icon: '☀️' },
+    { id: 1, name: 'Трек 1', file: '/track1.mp3', icon: '🍃' },
+    { id: 2, name: 'Трек 2', file: '/track2.mp3', icon: '✨' },
+    { id: 3, name: 'Трек 3', file: '/track3.mp3', icon: '☀️' },
   ];
 
   useEffect(() => {
@@ -53,41 +55,21 @@ function App() {
     }
   }
 
-  // УДАЛЕНИЕ ПОЖЕЛАНИЯ
   const deleteMemory = async (id) => {
-    if (!id) {
-      console.error("Ошибка: ID не передан в функцию удаления");
-      return;
-    }
-
     if (!confirm("Удалить это пожелание?")) return;
-
-    console.log("Запрос на удаление ID:", id);
-
-    const { error } = await supabase
-      .from('memories')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error("Ошибка Supabase:", error.message);
-      alert("Ошибка базы: " + error.message);
-    } else {
-      console.log("Удаление прошло успешно");
+    const { error } = await supabase.from('memories').delete().eq('id', id);
+    if (!error) {
       setMemories(prev => prev.filter(m => m.id !== id));
       setSelectedFlower(null);
-    }
-  };
-
-  // УДАЛЕНИЕ ФАЙЛА
-  const deleteFile = async (fileName) => {
-    if (!confirm("Удалить этот файл из шкатулки?")) return;
-    const { error } = await supabase.storage.from('garden-media').remove([fileName]);
-    if (!error) {
-      fetchArchive();
     } else {
       alert("Ошибка: " + error.message);
     }
+  };
+
+  const deleteFile = async (fileName) => {
+    if (!confirm("Удалить этот файл из шкатулки?")) return;
+    const { error } = await supabase.storage.from('garden-media').remove([fileName]);
+    if (!error) fetchArchive();
   };
 
   const addMemory = async (e) => {
@@ -159,7 +141,6 @@ function App() {
         ))}
       </main>
 
-      {/* Плеер */}
       <div style={{ position: 'fixed', bottom: '20px', left: '20px', zIndex: 1100, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div style={{ background: 'white', padding: '5px 10px', borderRadius: '10px', fontSize: '0.7rem' }}>{isPlaying ? currentTrack.name : 'Музыка'}</div>
         <div style={{ display: 'flex', gap: '5px' }}>
@@ -170,7 +151,6 @@ function App() {
       </div>
 
       <AnimatePresence>
-        {/* МОДАЛКА ЦВЕТКА */}
         {selectedFlower && (
           <div className="modal-overlay" onClick={() => setSelectedFlower(null)}>
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="modal" onClick={e => e.stopPropagation()}>
@@ -178,33 +158,34 @@ function App() {
               <p>"{selectedFlower.text}"</p>
               <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
                 <button className="btn-primary" onClick={() => setSelectedFlower(null)}>Закрыть</button>
-                <button onClick={() => deleteMemory(selectedFlower.id)} style={{ background: 'none', border: '1px solid red', color: 'red', borderRadius: '20px', padding: '5px 15px', cursor: 'pointer' }}>Удалить</button>
+                {/* Кнопка удаления только для автора или админа */}
+                {(selectedFlower.author_id === USER_ID || isAdmin) && (
+                  <button onClick={() => deleteMemory(selectedFlower.id)} style={{ background: 'none', border: '1px solid red', color: 'red', borderRadius: '20px', padding: '5px 15px', cursor: 'pointer' }}>Удалить</button>
+                )}
               </div>
             </motion.div>
           </div>
         )}
 
-        {/* МОДАЛКА ФОРМЫ (ЕЕ НЕ ХВАТАЛО) */}
         {showForm && (
           <div className="modal-overlay">
             <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="modal">
-              <h2 style={{ marginBottom: '20px' }}>Написать пожелание</h2>
+              <h2 style={{ marginBottom: '20px' }}>Посадить слово</h2>
               <form onSubmit={addMemory}>
                 <input name="name" placeholder="Твое имя" required />
                 <textarea name="text" placeholder="Пожелание..." rows="4" required />
-                <button type="submit" className="btn-primary" style={{ width: '100%', margin: '0' }}>Отправить письмо</button>
+                <button type="submit" className="btn-primary" style={{ width: '100%', margin: '0' }}>Отправить пожелание</button>
                 <button type="button" onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', marginTop: '15px', color: '#999', cursor: 'pointer', width: '100%' }}>Отмена</button>
               </form>
             </motion.div>
           </div>
         )}
 
-        {/* ШКАТУЛКА */}
         {showArchive && (
           <div className="modal-overlay" style={{ background: '#fdfaf1', display: 'block', overflowY: 'auto' }}>
             <div style={{ maxWidth: '800px', margin: '0 auto', padding: '20px' }}>
               <button onClick={() => setShowArchive(false)} style={{ float: 'right', fontSize: '30px', border: 'none', background: 'none', cursor: 'pointer' }}>✕</button>
-              <h2 className="title">Шкатулка</h2>
+              <h2 className="title">Шкатулка воспоминаний</h2>
               <label className="btn-primary" style={{ display: 'inline-block', marginBottom: '20px' }}>
                 {uploading ? "Загрузка..." : "📸 Добавить фото/видео"}
                 <input type="file" hidden onChange={handleFileUpload} disabled={uploading} accept="image/*,video/*" />
@@ -212,7 +193,8 @@ function App() {
               <div className="media-grid">
                 {archiveMedia.map(item => (
                   <div key={item.id} className="media-item">
-                    <button className="del-mini" onClick={() => deleteFile(item.name)}>✕</button>
+                    {/* Крестик удаления только для админа */}
+                    {isAdmin && <button className="del-mini" onClick={(e) => { e.stopPropagation(); deleteFile(item.name); }}>✕</button>}
                     {item.type === 'image' ? <img src={item.url} onClick={() => setFullScreenMedia(item)} /> : <video src={item.url} onClick={() => setFullScreenMedia(item)} />}
                   </div>
                 ))}
@@ -221,7 +203,6 @@ function App() {
           </div>
         )}
 
-        {/* ПОЛНОЭКРАННОЕ МЕДИА */}
         {fullScreenMedia && (
           <div className="modal-overlay" onClick={() => setFullScreenMedia(null)} style={{ background: 'rgba(0,0,0,0.9)' }}>
             <div style={{ maxWidth: '90%', maxHeight: '90%' }}>
